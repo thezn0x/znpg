@@ -4,10 +4,6 @@
 
 <h1 align="center">znpg</h1>
 <h3 align="center">A lightweight PostgreSQL wrapper for Python</h3>
----
-# znpg
-
-A lightweight PostgreSQL wrapper for Python with connection pooling and a clean API.
 
 ## Why znpg?
 
