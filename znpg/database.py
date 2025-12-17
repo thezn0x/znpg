@@ -22,7 +22,6 @@ class Database:
     def get_connection(self):
         if not self.pool:
             raise ValueError("Connection string not set. Call url_connect() or manual_connect().")
-            conn = None
         try:
             with self.pool.connection() as conn:
                 yield conn
