@@ -1,3 +1,10 @@
+<p align="center">
+  <img src="https://raw.githubusercontent.com/thezn0x/znpg/main/logo.png" width="150" alt="znpg logo">
+</p>
+
+<h1 align="center">znpg</h1>
+<h3 align="center">A lightweight PostgreSQL wrapper for Python</h3>
+---
 # znpg
 
 A lightweight PostgreSQL wrapper for Python with connection pooling and a clean API.
