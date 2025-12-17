@@ -1,0 +1,38 @@
+name: Publish Python Package
+
+on:
+  release:
+    types: [published]
+  # Optional: allow manual trigger
+  workflow_dispatch:
+
+jobs:
+  publish:
+    runs-on: ubuntu-latest
+    environment: release  # Optional: if you specified an environment on PyPI
+    
+    permissions:
+      id-token: write  # IMPORTANT: required for trusted publishing
+      contents: read
+    
+    steps:
+    - uses: actions/checkout@v4
+    
+    - name: Set up Python
+      uses: actions/setup-python@v4
+      with:
+        python-version: "3.9"
+    
+    - name: Install dependencies
+      run: |
+        python -m pip install --upgrade pip
+        pip install build
+    
+    - name: Build package
+      run: python -m build
+    
+    - name: Publish to PyPI
+      uses: pypa/gh-action-pypi-publish@release/v1
+      with:
+        # No credentials needed! Trusted publishing uses OIDC
+        verbose: true
