@@ -5,7 +5,7 @@ with open("README.md", "r", encoding="utf-8") as fh:
 
 setup(
     name="znpg",
-    version="1.0.0",
+    version="1.0.1",
     author="Zain",
     author_email="your.email@example.com",  # Update this
     description="A lightweight PostgreSQL wrapper for Python with connection pooling",
