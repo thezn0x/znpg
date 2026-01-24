@@ -4,8 +4,7 @@ from contextlib import contextmanager
 from psycopg_pool import ConnectionPool
 from typing import Optional, Any, Dict, List, Union
 from psycopg.rows import dict_row
-from query_builder import QueryBuilder
-from exceptions import AuthorizationError
+from .query_builder import QueryBuilder
 
 class Database:
     def __init__(self):
@@ -61,7 +60,7 @@ class Database:
             with conn.cursor() as cursor:
                 cursor.execute(sql, params)
                 row = cursor.fetchone()
-                if row == None:
+                if row is None:
                     return None
                 columns = [desc[0] for desc in cursor.description]
                 return dict(zip(columns, row))
@@ -73,7 +72,7 @@ class Database:
                 rows = cursor.fetchall()
                 return rows
 
-    def select(self, table: str ,columns: Optional[List[str]]=None,where: Optional[Dict[str,Any]] = None, order_by: Optional[Union[str, List[str]]] = None, limit: Optional[int]= None) -> List[Dict[str, Any]]:
+    def select(self, table: str ,columns: Optional[List[str]]=None,where: Optional[Dict[str,Any]] = None, order_by: Optional[Union[str, List[str]]] = None, limit: Optional[int]= None) -> Union[bool,List[Dict[str, Any]]]:
         sql, params = QueryBuilder.build_select_query(table, columns ,where, order_by, limit)
         try:
             result =  self._execute_fetch_all(sql, params)
@@ -85,7 +84,7 @@ class Database:
     def insert(self, table: str, data: Dict[str,Any]) -> bool:
         sql_string,parameters = QueryBuilder.build_insert_query(table,data)
         try:
-            result = self.execute(sql_string,parameters)
+            self.execute(sql_string,parameters)
             return True
         except Error as e:
             print(f"Error while performing 'INSERT' operation : {e}")
@@ -153,10 +152,10 @@ class Database:
             print(f"Error while performing TRUNCATE operation : {e}")
             return False
 
-    def bulk_insert(self, table: str, data: List[Dict[str,Any]]) -> Union[int,None]:
-        if not data:  # ← Add this check
+    def bulk_insert(self, table: str, data: List[Dict[str,Any]], on_conflict: Optional[str] = None) -> Union[int,None]:
+        if not data:
             return 0
-        sql, params = QueryBuilder.build_bulk_insert(table, data)
+        sql, params = QueryBuilder.build_bulk_insert(table, data, on_conflict)
         try:
             result = self.execute(sql,params)
             return result
@@ -196,7 +195,7 @@ class Database:
                     print(f"Error while performing count() operation : {e}")
                     return None
 
-    def exists(self, table: str, where: Dict[str,Any]) -> bool:
+    def exists(self, table: str, where: Dict[str,Any]) -> Union[None,bool]:
         sql,params = QueryBuilder.build_exists_query(table,where)
         try:
             result = self._execute_fetch_all(sql,params)

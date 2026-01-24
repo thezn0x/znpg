@@ -1,5 +1,5 @@
-from typing import Any, Optional, Dict, List, Union
-from exceptions import IncompleteArgumentsError
+from typing import Any, Optional, Dict, List,Tuple
+from .exceptions import IncompleteArgumentsError
 from .exceptions import AuthorizationError
 
 class QueryBuilder:
@@ -39,7 +39,7 @@ class QueryBuilder:
         return final_sql, params
     
     @staticmethod
-    def build_insert_query(table: str, data: Dict[str,Any]) -> tuple[str, List[Any]]:
+    def build_insert_query(table: str, data: Dict[str,Any]) -> Tuple[str, List[Any]]:
         columns = []
         params = []
         for keys, values in data.items():
@@ -51,7 +51,7 @@ class QueryBuilder:
         return full_insert_query, params
 
     @staticmethod
-    def build_update_query(table: str, data: Dict[str,Any], conditions: Optional[Dict[str,Any]] = None) -> tuple[str, List[Any]]:
+    def build_update_query(table: str, data: Dict[str,Any], conditions: Optional[Dict[str,Any]] = None) -> Tuple[str, List[Any]]:
         columns = []
         params = []
         for keys,values in data.items():
@@ -74,7 +74,7 @@ class QueryBuilder:
             return full_update_query, params
 
     @staticmethod
-    def build_delete_query(table: str, conditions: Optional[Dict[str,Any]] = None) -> tuple[str, List[Any]]:
+    def build_delete_query(table: str, conditions: Optional[Dict[str,Any]] = None) -> Tuple[str, List[Any]]:
         columns = []
         params = []
 
@@ -127,7 +127,7 @@ class QueryBuilder:
         return sql
 
     @staticmethod
-    def build_bulk_insert(table: str,data: List[Dict[str,Any]]) -> tuple[str,List[Any]]:
+    def build_bulk_insert(table: str,data: List[Dict[str,Any]], on_conflict: Optional[str] = None) -> Tuple[str,List[Any]]:
         keys = list(data[0].keys())
         keys_pt = ", ".join(f'"{k}"' for k in keys)
 
@@ -139,7 +139,10 @@ class QueryBuilder:
             for key in keys:
                 values_list.append(item[key])
 
-        sql = f'INSERT INTO "{table}" ({keys_pt}) VALUES {placeholders_group}'
+        if on_conflict:
+            sql = f'INSERT INTO "{table}" ({keys_pt}) VALUES {placeholders_group} ON CONFLICT {on_conflict}'
+        else:
+            sql = f'INSERT INTO "{table}" ({keys_pt}) VALUES {placeholders_group}'
         return sql,values_list
 
     @staticmethod
@@ -148,7 +151,7 @@ class QueryBuilder:
         return sql
 
     @staticmethod
-    def build_count_query(table: str, where: Optional[Dict[str,Any]] = None) -> Union[str,List[Any]]:
+    def build_count_query(table: str, where: Optional[Dict[str,Any]] = None) -> Tuple[str,List[Any]]:
         if where:
             keys = []
             params = []
@@ -162,7 +165,7 @@ class QueryBuilder:
             return f"SELECT COUNT(*) FROM \"{table}\"",[]
 
     @staticmethod
-    def build_exists_query(table: str, where: Dict[str,Any]) -> Union[str,List[Any]]:
+    def build_exists_query(table: str, where: Dict[str,Any]) -> Tuple[str,List[Any]]:
         keys = []
         params = []
         for key,value in where.items():
