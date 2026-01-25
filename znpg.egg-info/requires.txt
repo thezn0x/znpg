@@ -1,2 +1,0 @@
-psycopg>=3.0.0
-psycopg-pool>=3.0.0
