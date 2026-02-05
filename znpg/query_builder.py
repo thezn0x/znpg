@@ -174,3 +174,20 @@ class QueryBuilder:
         keys_pt = " AND ".join(f'"{key}" = %s' for key in keys)
         where_sql = f"SELECT EXISTS(SELECT 1 FROM \"{table}\" WHERE {keys_pt})"
         return where_sql,params
+
+    @staticmethod
+    def build_create_index(table: str, columns: List[str], unique: bool = False):
+        idx_name = f"idx_{table}_{'_'.join(columns)}"
+        cols = ", ".join(columns)
+        unique_str = "UNIQUE " if unique else ""
+        
+        sql = f"CREATE {unique_str}INDEX {idx_name} ON {table} ({cols})"
+        return sql
+
+    @staticmethod
+    def build_vacuum(table: str = None, analyze: bool = True):
+        if table:
+            sql = f"VACUUM {'ANALYZE ' if analyze else ''}{table}"
+        else:
+            sql = "VACUUM"
+        return sql

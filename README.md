@@ -1,342 +1,619 @@
-# znpg
+# ZNPG v1.2.0 Documentation
 
-A lightweight PostgreSQL wrapper for Python with connection pooling and a clean API.
+A robust, high-level PostgreSQL database abstraction layer built on `psycopg3` with connection pooling, query building, and context manager support.
 
-## Why znpg?
+**Philosophy:**
+> Database access should be simple, safe, and Pythonic.
 
-Working with psycopg directly involves a lot of boilerplate. znpg removes the repetition while maintaining the flexibility of raw SQL when you need it.
+ZNPG was born from frustration with psycopg2's verbosity and SQLAlchemy's complexity. We believe database libraries should:
 
-**Key features:**
-- Built-in connection pooling
-- Simple CRUD operations
-- Bulk insert support
-- Transaction management
-- SQL injection protection
-- Type hints throughout
+- Get out of your way with clean, intuitive APIs
+
+- Protect you from yourself with safe defaults
+
+- Scale with your needs from scripts to production apps
+
+Built by a developer who got tired of boilerplate. Used by 250+ developers who felt the same.
+
+## Features
+- Zero-boilerplate - From import to query in 3 lines
+
+- Safe by default - No unsafe DELETE/UPDATE without explicit flags
+
+- Built-in pooling - Connection pooling that just works
+
+- Full CRUD - High-level operations for 95% of use cases
+
+- Raw SQL access - Escape hatch when you need full control
+
+- Type-hinted - Modern Python with complete type hints
+
+- Production-ready - Connection health checks, stats, and maintenance ops
+
+- JSON native - Built-in import/export for data portability  
+
+---
+## Table of Contents
+- [Overview](#overview)
+- [Installation](#installation)
+- [Quick Start](#quick-start)
+- [Core Classes](#core-classes)
+- [Database](#database-class)
+- [Connection Management](#connection-management)
+- [CRUD Operations](#crud-operations)
+- [Query Builder Integration](#query-builder-integration)
+- [Transaction Support](#transaction-support)
+- [Utility Methods](#utility-methods)
+- [Error Handling](#error-handling)
+- [Best Practices](#best-practices)
+
+---
+
+## Overview
+
+ZNPG provides a Pythonic interface to PostgreSQL databases with the following features:
+
+- **Connection Pooling**: Built-in `psycopg_pool` integration for efficient connection management
+- **Context Managers**: Safe resource handling with `with` statements
+- **CRUD Abstractions**: High-level methods for common database operations
+- **Query Builder Integration**: Seamless SQL generation via `QueryBuilder` class
+- **Type Safety**: Full type hints and generic support
+- **Transaction Support**: Atomic operations with automatic rollback on failure
+- **JSON Export/Import**: Native support for data serialization
+
+---
 
 ## Installation
+
 ```bash
+# Optional: Install znpg package
 pip install znpg
 ```
 
+**Dependencies:**
+- `psycopg` (v3.x)
+- `psycopg-pool`
+- `typing` (Python 3.8+)
+
+---
+
 ## Quick Start
+
 ```python
 from znpg import Database
 
-# Connect to database
-db = Database()
-db.url_connect("postgresql://user:password@localhost:5432/dbname")
+# Initialize with connection string
+db = Database(min_size=2, max_size=10)
+db.url_connect("postgresql://user:pass@localhost:5432/mydb")
 
-# Create table
-db.create_table('users', {
-    'id': 'SERIAL PRIMARY KEY',
-    'name': 'VARCHAR(100) NOT NULL',
-    'email': 'VARCHAR(255) UNIQUE',
-    'created_at': 'TIMESTAMP DEFAULT CURRENT_TIMESTAMP'
-})
-
-# Insert data
-db.insert('users', {
-    'name': 'John Doe',
-    'email': 'john@example.com'
-})
-
-# Query data
-users = db.select('users', where={'name': 'John Doe'})
-print(users)  # [{'id': 1, 'name': 'John Doe', 'email': 'john@example.com', ...}]
-
-# Close connection
-db.close()
-```
-
-## Using Context Manager
-
-The recommended way to use znpg is with a context manager, which automatically handles connection cleanup:
-```python
-from znpg import Database
-
-with Database() as db:
-    db.url_connect("postgresql://user:password@localhost:5432/dbname")
-    
-    # Your database operations
-    users = db.select('users')
-    
-# Connection pool automatically closed
-```
-
-## Core Operations
-
-### Connecting
-
-**Using URL string:**
-```python
-db = Database()
-db.url_connect("postgresql://user:password@localhost:5432/dbname")
-```
-
-**Using individual parameters:**
-```python
-db = Database()
+# Or use manual connection parameters
 db.manual_connect(
     username="user",
-    password="password",
+    password="pass",
     host="localhost",
-    db_name="dbname",
+    port=5432,
+    db_name="mydb"
+)
+
+# Simple query
+users = db.query("SELECT * FROM users WHERE age > %s", [18])
+
+# Using context manager (recommended)
+with Database() as db:
+    db.url_connect("postgresql://user:pass@localhost/db")
+    result = db.select("users", where={"status": "active"})
+```
+
+---
+
+## Core Classes
+
+### Database Class
+
+The primary interface for database operations.
+
+#### Constructor
+
+```python
+Database(
+    min_size: int = 1,      # Minimum connections in pool
+    max_size: int = 10,     # Maximum connections in pool  
+    timeout: int = 30       # Connection timeout in seconds
+)
+```
+
+#### Attributes
+
+| Attribute | Type | Description |
+|-----------|------|-------------|
+| `pool` | `Optional[ConnectionPool]` | The underlying connection pool instance |
+| `min_size` | `int` | Minimum number of connections maintained |
+| `max_size` | `int` | Maximum number of connections allowed |
+| `is_connected` | `bool` | Connection status flag |
+| `timeout` | `int` | Connection acquisition timeout |
+
+---
+
+## Connection Management
+
+### Connection Methods
+
+#### `url_connect(conn_string: str) -> None`
+
+Connect using a PostgreSQL connection URI.
+
+```python
+db = Database()
+db.url_connect("postgresql://admin:secret@db.example.com:5432/production")
+```
+
+#### `manual_connect(username, host, password, db_name, port) -> None`
+
+Connect using individual parameters.
+
+```python
+db.manual_connect(
+    username="postgres",
+    host="localhost", 
+    password="secure_pass",
+    db_name="myapp",
     port=5432
 )
 ```
 
-### Selecting Data
+#### `get_connection() -> ContextManager`
 
-**Select all:**
+Context manager for raw connection access.
+
 ```python
-users = db.select('users')
+with db.get_connection() as conn:
+    with conn.cursor() as cur:
+        cur.execute("SELECT version()")
+        print(cur.fetchone())
 ```
 
-**Select with conditions:**
+#### `is_healthy() -> bool`
+
+Check database connectivity.
+
 ```python
-users = db.select('users', where={'active': True})
+if db.is_healthy():
+    print("Database connection is active")
 ```
 
-**Select specific columns:**
+#### `stats() -> Dict`
+
+Retrieve connection pool statistics.
+
 ```python
-users = db.select('users', columns=['name', 'email'])
+stats = db.stats()
+# Returns: {"size": 5, "available": 3, "used": 2}
 ```
 
-**With ordering and limit:**
+#### `close() -> None`
+
+Explicitly close the connection pool.
+
 ```python
-users = db.select('users', 
-    where={'active': True},
-    order_by='created_at DESC',
+db.close()  # Automatically called when using context managers
+```
+
+---
+
+## CRUD Operations
+
+### Read Operations
+
+#### `query(sql: str, params: Optional[List[Any]] = None) -> List[Dict[str, Any]]`
+
+Execute raw SQL and return results as list of dictionaries.
+
+```python
+# Parameterized query (safe against SQL injection)
+results = db.query(
+    "SELECT * FROM orders WHERE status = %s AND amount > %s",
+    ["pending", 100.00]
+)
+# Returns: [{"id": 1, "status": "pending", "amount": 150.00}, ...]
+```
+
+#### `fetch_one(sql: str, params: Optional[List[Any]] = None) -> Optional[Dict[str, Any]]`
+
+Fetch single record or None.
+
+```python
+user = db.fetch_one("SELECT * FROM users WHERE email = %s", ["john@example.com"])
+if user:
+    print(user["name"])
+```
+
+#### `select(table, columns, where, order_by, limit) -> List[Dict[str, Any]]`
+
+High-level SELECT with QueryBuilder.
+
+```python
+# Basic select
+users = db.select("users")
+
+# With filters
+active_users = db.select(
+    table="users",
+    columns=["id", "name", "email"],
+    where={"status": "active", "verified": True},
+    order_by=["created_at DESC"],
     limit=10
 )
 ```
 
-### Inserting Data
+#### `get_by_id(table: str, id_name: str, id: Union[str, int]) -> List[Dict]`
 
-**Single row:**
+Fetch record by primary key.
+
 ```python
-db.insert('users', {
-    'name': 'Jane Smith',
-    'email': 'jane@example.com'
+user = db.get_by_id("users", "user_id", 42)
+```
+
+#### `count(table: str, where: Optional[Dict] = None) -> Optional[int]`
+
+Count records with optional filtering.
+
+```python
+total = db.count("orders")
+pending_count = db.count("orders", where={"status": "pending"})
+```
+
+#### `exists(table: str, where: Dict[str, Any]) -> Optional[bool]`
+
+Check if records matching criteria exist.
+
+```python
+has_admin = db.exists("users", {"role": "admin"})
+```
+
+### Write Operations
+
+#### `execute(sql: str, params: Optional[List[Any]] = None) -> int`
+
+Execute non-query SQL (INSERT, UPDATE, DELETE). Returns rowcount.
+
+```python
+rows_deleted = db.execute("DELETE FROM logs WHERE created_at < %s", ["2023-01-01"])
+```
+
+#### `insert(table: str, data: Dict[str, Any]) -> bool`
+
+Insert single record.
+
+```python
+success = db.insert("users", {
+    "name": "Jane Doe",
+    "email": "jane@example.com",
+    "created_at": "2024-01-15"
 })
 ```
 
-**Multiple rows (bulk insert):**
+#### `update(table: str, data: Dict, conditions: Optional[Dict] = None, allow_all: bool = False) -> int`
+
+Update records with safety checks.
+
 ```python
-db.bulk_insert('users', [
-    {'name': 'Alice', 'email': 'alice@example.com'},
-    {'name': 'Bob', 'email': 'bob@example.com'},
-    {'name': 'Charlie', 'email': 'charlie@example.com'}
-])
-```
-
-Bulk insert is significantly faster for large datasets.
-
-### Updating Data
-
-**Update with conditions:**
-```python
-db.update('users',
-    data={'active': False},
-    conditions={'email': 'john@example.com'}
+# Safe update with WHERE clause
+rows_updated = db.update(
+    table="users",
+    data={"last_login": "2024-01-15"},
+    conditions={"id": 42}
 )
+
+# DANGEROUS: Update all records (requires explicit flag)
+db.update("users", {"status": "inactive"}, allow_all=True)
 ```
 
-**Update all rows (requires explicit permission):**
+#### `delete(table: str, conditions: Optional[Dict] = None, allow_deleteall: bool = False) -> int`
+
+Delete records with safety checks.
+
 ```python
-db.update('users',
-    data={'verified': True},
-    allow_all=True
-)
+# Safe delete
+deleted = db.delete("sessions", {"expired": True})
+
+# DANGEROUS: Delete all (requires explicit flag)
+db.delete("logs", allow_deleteall=True)
 ```
 
-### Deleting Data
+#### `bulk_insert(table: str, data: List[Dict], on_conflict: Optional[str] = None) -> int`
 
-**Delete with conditions:**
+Efficient batch insertion.
+
 ```python
-db.delete('users', conditions={'active': False})
+users = [
+    {"name": "Alice", "email": "alice@example.com"},
+    {"name": "Bob", "email": "bob@example.com"}
+]
+inserted = db.bulk_insert("users", users, on_conflict="DO NOTHING")
 ```
 
-**Delete all (requires explicit permission):**
-```python
-db.delete('users', allow_deleteall=True)
-```
+---
 
-## Table Management
+## DDL Operations
 
-### Create Table
+#### `create_table(table: str, columns: Optional[Dict[str, str]] = None) -> bool`
+
+Create new table.
+
 ```python
-db.create_table('products', {
-    'id': 'SERIAL PRIMARY KEY',
-    'name': 'VARCHAR(200) NOT NULL',
-    'price': 'DECIMAL(10, 2)',
-    'stock': 'INTEGER DEFAULT 0',
-    'created_at': 'TIMESTAMP DEFAULT CURRENT_TIMESTAMP'
+db.create_table("products", {
+    "id": "SERIAL PRIMARY KEY",
+    "name": "VARCHAR(255) NOT NULL",
+    "price": "DECIMAL(10,2)",
+    "created_at": "TIMESTAMP DEFAULT CURRENT_TIMESTAMP"
 })
 ```
 
-### Drop Table
+#### `drop_table(table: str, cascade: bool = False, allow_action: bool = False) -> bool`
+
+Drop table with safety checks.
+
 ```python
-db.drop_table('old_table', allow_action=True)
+db.drop_table("temp_table", allow_action=True)
+db.drop_table("orders", cascade=True, allow_action=True)  # Cascades to dependencies
 ```
 
-**With cascade:**
+#### `truncate(table: str) -> bool`
+
+Truncate table (remove all data, keep structure).
+
 ```python
-db.drop_table('parent_table', cascade=True, allow_action=True)
+db.truncate("logs")
 ```
 
-### Check if Table Exists
+#### `table_exists(table: str) -> Optional[bool]`
+
+Check table existence.
+
 ```python
-if db.table_exists('users'):
-    print("Table exists")
+if db.table_exists("migrations"):
+    print("Migrations table already created")
 ```
 
-### Get Table Columns
+#### `get_table_columns(table: str) -> Optional[List[str]]`
+
+Retrieve column names for a table.
+
 ```python
-columns = db.get_table_columns('users')
-print(columns)  # ['id', 'name', 'email', 'created_at']
+columns = db.get_table_columns("users")
+# Returns: ['id', 'name', 'email', 'created_at']
 ```
 
-### Truncate Table
+#### `create_index(table: str, columns: List[str], unique: bool = False) -> int`
+
+Create database index.
+
 ```python
-db.truncate('logs')
+db.create_index("users", ["email"], unique=True)
+db.create_index("orders", ["user_id", "created_at"])
 ```
+
+#### `vacuum(table: Optional[str] = None, analyze: bool = True) -> int`
+
+Run PostgreSQL VACUUM for maintenance.
+
+```python
+db.vacuum()  # Full database
+db.vacuum("large_table", analyze=True)
+```
+
+---
+
+## Transaction Support
+
+#### `transaction() -> ContextManager`
+
+Explicit transaction management with automatic commit/rollback.
+
+```python
+try:
+    with db.transaction() as conn:
+        # All operations use same connection
+        db.insert("accounts", {"user_id": 1, "balance": 100})
+        db.insert("transactions", {"account_id": 1, "amount": 100})
+        # Automatically commits if no exception
+except Exception as e:
+    # Automatically rolled back on exception
+    logger.error(f"Transaction failed: {e}")
+```
+
+**Note:** The `transaction()` method yields a connection, but the current implementation doesn't override internal methods to use this connection. For true transactional safety with the high-level methods, extend the class or use `get_connection()` directly:
+
+```python
+with db.get_connection() as conn:
+    try:
+        with conn.cursor() as cur:
+            cur.execute("INSERT INTO accounts ...")
+            cur.execute("INSERT INTO transactions ...")
+        conn.commit()
+    except Exception:
+        conn.rollback()
+        raise
+```
+
+---
 
 ## Utility Methods
 
-### Count Rows
+### JSON Serialization
+
+#### `export_to_json(file: str, data: dict, indent: int = 4) -> bool`
+
+Static method to export data to JSON file.
+
 ```python
-total_users = db.count('users')
-active_users = db.count('users', where={'active': True})
+data = db.select("users")
+Database.export_to_json("backup.json", data)
 ```
 
-### Check if Record Exists
+#### `import_from_json(file: str) -> Union[dict, bool]`
+
+Static method to import data from JSON file.
+
 ```python
-exists = db.exists('users', {'email': 'john@example.com'})
+data = Database.import_from_json("config.json")
+db.bulk_insert("settings", data)
 ```
 
-### Get by ID
+### Connection String Builder
+
+#### `c_string(username, host, password, db_name, port) -> str`
+
+Static method to generate connection string.
+
 ```python
-user = db.get_by_id('users', 'id', 123)
+conn_str = Database.c_string("user", "localhost", "pass", "db", 5432)
+# Returns: "postgresql://user:pass@localhost:5432/db"
 ```
 
-## Transactions
+---
 
-For operations that need to be atomic:
-```python
-with db.transaction() as conn:
-    cursor = conn.cursor()
-    cursor.execute("UPDATE accounts SET balance = balance - 100 WHERE id = 1")
-    cursor.execute("UPDATE accounts SET balance = balance + 100 WHERE id = 2")
-    # Automatically commits on success, rolls back on error
-```
+## Query Builder Integration
 
-## Raw SQL
+The `Database` class relies on a `QueryBuilder` class (not shown) to construct SQL. Expected interface:
 
-When you need full control, you can execute raw SQL:
-```python
-# Query with results
-results = db.query("SELECT * FROM users WHERE age > %s", [18])
+| Method | Purpose |
+|--------|---------|
+| `build_select_query(table, columns, where, order_by, limit)` | Generate SELECT SQL |
+| `build_insert_query(table, data)` | Generate INSERT SQL |
+| `build_update_query(table, data, conditions)` | Generate UPDATE SQL |
+| `build_delete_query(table, conditions)` | Generate DELETE SQL |
+| `build_createtable_query(table, columns)` | Generate CREATE TABLE SQL |
+| `build_droptable_query(table, cascade, allow)` | Generate DROP TABLE SQL |
+| `build_truncate_query(table)` | Generate TRUNCATE SQL |
+| `build_findtable_query()` | Generate table existence check |
+| `build_bulk_insert(table, data, on_conflict)` | Generate batch INSERT |
+| `build_allcolumns_query()` | Generate column metadata query |
+| `build_getby_id(table, id_name)` | Generate primary key lookup |
+| `build_count_query(table, where)` | Generate COUNT SQL |
+| `build_exists_query(table, where)` | Generate EXISTS SQL |
+| `build_create_index(table, columns, unique)` | Generate CREATE INDEX |
+| `build_vacuum(table, analyze)` | Generate VACUUM SQL |
 
-# Execute without results
-rows_affected = db.execute("DELETE FROM logs WHERE created_at < %s", ['2023-01-01'])
-
-# Fetch single row
-user = db.fetch_one("SELECT * FROM users WHERE id = %s", [123])
-```
-
-## Safety Features
-
-znpg includes safety checks for destructive operations:
-
-**UPDATE without WHERE clause:**
-```python
-# This will raise ValueError
-db.update('users', {'active': False})
-
-# Must explicitly allow
-db.update('users', {'active': False}, allow_all=True)
-```
-
-**DELETE without WHERE clause:**
-```python
-# This will raise ValueError
-db.delete('users')
-
-# Must explicitly allow
-db.delete('users', allow_deleteall=True)
-```
-
-**DROP TABLE requires confirmation:**
-```python
-# This will raise AuthorizationError
-db.drop_table('important_table')
-
-# Must explicitly allow
-db.drop_table('important_table', allow_action=True)
-```
-
-## Connection Pooling
-
-znpg uses connection pooling by default (1-10 connections). This means:
-- Connections are reused across operations
-- Better performance under load
-- Automatic connection management
-- Thread-safe operations
-
-You don't need to manage connections manually - the pool handles everything.
-
-## Requirements
-
-- Python 3.7+
-- psycopg 3.0+
-- psycopg-pool 3.0+
-
-## Performance
-
-Bulk insert performance test (69 rows):
-- Traditional loop insert: ~15-20 seconds
-- znpg bulk_insert: <5 seconds
-
-For data pipelines and ETL operations, bulk_insert provides significant performance improvements.
+---
 
 ## Error Handling
 
-All methods include error handling and return sensible defaults:
+All database operations catch `psycopg.Error` and log via the configured logger. Methods return safe defaults on failure:
+
+| Method | Failure Return |
+|--------|---------------|
+| `select()` | `[]` |
+| `insert()` | `False` |
+| `update()` | `0` |
+| `delete()` | `0` |
+| `create_table()` | `False` |
+| `drop_table()` | `False` |
+| `truncate()` | `False` |
+| `table_exists()` | `None` |
+| `bulk_insert()` | `0` |
+| `get_table_columns()` | `None` |
+| `get_by_id()` | `None` |
+| `count()` | `None` |
+| `exists()` | `None` |
+
+**Critical errors** (connection failures) are re-raised after logging.
+
+---
+
+## Best Practices
+
+### 1. Always Use Context Managers
 ```python
-# Returns empty list on error
-users = db.select('nonexistent_table')  # []
+# Good
+with Database() as db:
+    db.url_connect(conn_str)
+    data = db.select("users")
 
-# Returns False on error
-success = db.insert('users', {'invalid': 'data'})  # False
-
-# Returns 0 on error
-count = db.count('nonexistent_table')  # None
+# Avoid
+db = Database()
+db.url_connect(conn_str)
+# If exception occurs here, pool may not close
 ```
 
-Errors are printed to console for debugging.
+### 2. Use Parameterized Queries
+```python
+# Safe
+db.query("SELECT * FROM users WHERE id = %s", [user_id])
 
-## License
-
-MIT License - see LICENSE file for details.
-
-## Contributing
-
-Contributions are welcome. Please open an issue first to discuss proposed changes.
-
-## Author
-
-Built by Zain, a 17-year-old developer from Pakistan.
-
-## Changelog
-
-### Version 1.0.0
-- Initial release
-- Core CRUD operations
-- Connection pooling
-- Bulk insert support
-- Table management
-- Transaction support
-- Safety checks for destructive operations
+# NEVER do this (SQL Injection risk)
+db.query(f"SELECT * FROM users WHERE id = {user_id}")
 ```
+
+### 3. Handle Connection Failures
+```python
+try:
+    db.url_connect(conn_str)
+except Exception as e:
+    logger.critical(f"Database connection failed: {e}")
+    raise SystemExit(1)
+```
+
+### 4. Use Explicit Safety Flags
+```python
+# This raises ValueError
+db.update("users", {"role": "admin"})  # Missing WHERE
+
+# This works
+db.update("users", {"role": "admin"}, allow_all=True)
+```
+
+### 5. Monitor Pool Health
+```python
+stats = db.stats()
+if stats["available"] / stats["size"] < 0.2:
+    logger.warning("Database pool running low on connections")
+```
+
+---
+
+## API Reference Summary
+
+### Class: `Database`
+
+| Method | Returns | Description |
+|--------|---------|-------------|
+| `__init__(min_size, max_size, timeout)` | `Database` | Constructor |
+| `url_connect(conn_string)` | `None` | Connect via URI |
+| `manual_connect(...)` | `None` | Connect via params |
+| `get_connection()` | `ContextManager` | Raw connection access |
+| `query(sql, params)` | `List[Dict]` | Raw SQL query |
+| `execute(sql, params)` | `int` | Raw SQL execution |
+| `fetch_one(sql, params)` | `Optional[Dict]` | Single record fetch |
+| `select(...)` | `List[Dict]` | High-level SELECT |
+| `insert(table, data)` | `bool` | Insert record |
+| `update(table, data, conditions, allow_all)` | `int` | Update records |
+| `delete(table, conditions, allow_deleteall)` | `int` | Delete records |
+| `bulk_insert(table, data, on_conflict)` | `int` | Batch insert |
+| `create_table(table, columns)` | `bool` | Create table |
+| `drop_table(table, cascade, allow_action)` | `bool` | Drop table |
+| `truncate(table)` | `bool` | Truncate table |
+| `table_exists(table)` | `Optional[bool]` | Check existence |
+| `get_table_columns(table)` | `Optional[List[str]]` | Get columns |
+| `get_by_id(table, id_name, id)` | `List[Dict]` | Fetch by PK |
+| `count(table, where)` | `Optional[int]` | Count records |
+| `exists(table, where)` | `Optional[bool]` | Check existence |
+| `create_index(table, columns, unique)` | `int` | Create index |
+| `vacuum(table, analyze)` | `int` | Run VACUUM |
+| `is_healthy()` | `bool` | Health check |
+| `stats()` | `Dict` | Pool statistics |
+| `transaction()` | `ContextManager` | Transaction context |
+| `close()` | `None` | Close pool |
+| `export_to_json(file, data, indent)` | `bool` | Static: Export JSON |
+| `import_from_json(file)` | `Union[dict, bool]` | Static: Import JSON |
+| `c_string(...)` | `str` | Static: Build conn string |
+
+---
+
+**Version:** 1.2.0  
+**License:** MIT  
+**Python Support:** 3.8+  
+**PostgreSQL:** 12+  
+**Author:** [ZN-0X](https://github.com/thezn0x)
+
+For issues and contributions, visit the project [repository](https://github.com/thezn0x/znpg).

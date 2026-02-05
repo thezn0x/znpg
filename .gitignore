@@ -1,4 +1,8 @@
 __pycache__/
 
+znpg.egg-info/
+
+dist/
+
 venv/
 .venv

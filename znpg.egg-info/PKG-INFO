@@ -1,6 +1,6 @@
 Metadata-Version: 2.4
 Name: znpg
-Version: 1.1.0
+Version: 1.1.1
 Summary: A lightweight PostgreSQL wrapper for Python with connection pooling
 Home-page: https://github.com/thezn0x/znpg
 Author: Zain(ZN-0X)
