@@ -5,7 +5,7 @@ from typing import Optional, Any, Dict, List, Union
 from psycopg.rows import dict_row
 import json
 from .query_builder import QueryBuilder
-from utils import get_logger
+from znpg.utils.logger import get_logger
 
 logger = get_logger(__name__)
 

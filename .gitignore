@@ -3,6 +3,6 @@ __pycache__/
 znpg.egg-info/
 
 dist/
-
+.idea
 venv/
 .venv
