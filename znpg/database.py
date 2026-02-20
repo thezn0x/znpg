@@ -3,7 +3,6 @@ from psycopg import Connection
 from contextlib import contextmanager
 from psycopg_pool import ConnectionPool
 from typing import Optional, Any, Dict, List, Union
-from psycopg.rows import dict_row
 import json
 from .query_builder import QueryBuilder
 from znpg.utils.logger import get_logger

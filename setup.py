@@ -5,10 +5,10 @@ with open("README.md", "r", encoding="utf-8") as fh:
 
 setup(
     name="znpg",
-    version="1.2.0",
+    version="1.3.0",
     author="Zain(ZN-0X)",
     author_email="thezn0x.exe@gmail.com",
-    description="A lightweight PostgreSQL wrapper for Python with connection pooling",
+    description="A robust, high-level PostgreSQL database abstraction layer built on `psycopg3`.",
     long_description=long_description,
     long_description_content_type="text/markdown",
     url="https://github.com/thezn0x/znpg",
